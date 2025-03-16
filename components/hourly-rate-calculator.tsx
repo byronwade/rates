@@ -18,6 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import CrewConfiguration from "./crew-configuration";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { v4 as uuidv4 } from "uuid";
+import { safeReduce, safeMap, safeFilter } from "@/helpers/safe-operations";
+import { formatCurrency } from "@/lib/utils";
 
 export interface Worker {
 	id: string;
@@ -92,6 +94,16 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 		[setState]
 	);
 
+	// State variables for calculations
+	const [officeStaffCostPerHour, setOfficeStaffCostPerHour] = useState(0);
+	const [overheadCostPerHour, setOverheadCostPerHour] = useState(0);
+	const [recommendedRate, setRecommendedRate] = useState(0);
+	const [totalLaborCost, setTotalLaborCost] = useState(0);
+	const [totalCost, setTotalCost] = useState(0);
+	const [totalOfficeStaffCost, setTotalOfficeStaffCost] = useState(0);
+	const [totalCommission, setTotalCommission] = useState(0);
+	const [wastageOnlyCost, setWastageOnlyCost] = useState(0);
+
 	// Use effect to initialize the component with default values if needed
 	useEffect(() => {
 		// If default wastagePercent is provided and state doesn't have it set yet,
@@ -111,7 +123,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 		}
 
 		// Add initial crew if none exists
-		if (!state.crews || state.crews.length === 0) {
+		if (!state.crews || !Array.isArray(state.crews) || state.crews.length === 0) {
 			updateState("crews", [
 				{
 					id: uuidv4(),
@@ -136,11 +148,6 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 					monthlyCost: 1500,
 				},
 			]);
-		}
-
-		// Setup initial monthly billable hours if not set
-		if (!state.monthlyBillableHours) {
-			updateState("monthlyBillableHours", 160);
 		}
 
 		// Setup initial daily work hours if not set
@@ -184,16 +191,6 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 	// Replace all the useState calls with values from the state prop
 	// and update functions that modify the state
 	const [totalHours, setTotalHours] = useState(1.2);
-	const [wastageOnlyCost, setWastageOnlyCost] = useState(0);
-	const [overheadCostPerHour, setOverheadCostPerHour] = useState(0);
-	const [officeStaffCostPerHour, setOfficeStaffCostPerHour] = useState(0);
-	const [totalOfficeStaffCost, setTotalOfficeStaffCost] = useState(0);
-
-	// Calculated values
-	const [totalLaborCost, setTotalLaborCost] = useState(0);
-	const [totalCommission, setTotalCommission] = useState(0);
-	const [totalCost, setTotalCost] = useState(0);
-	const [recommendedRate, setRecommendedRate] = useState(0);
 
 	// Helper function to update state
 	const handleCommissionToggle = (enabled: boolean) => {
@@ -204,7 +201,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 	const updateOfficeStaff = (id: string, field: string, value: unknown) => {
 		if (!state.officeStaff) return;
 
-		const updatedStaff = state.officeStaff.map((staff) => {
+		const updatedStaff = safeMap(state.officeStaff, (staff) => {
 			if (staff.id === id) {
 				return { ...staff, [field]: value };
 			}
@@ -217,7 +214,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 	const removeOfficeStaff = (id: string) => {
 		if (!state.officeStaff) return;
 
-		const updatedStaff = state.officeStaff.filter((staff) => staff.id !== id);
+		const updatedStaff = safeFilter(state.officeStaff, (staff) => staff.id !== id);
 		updateState("officeStaff", updatedStaff);
 	};
 
@@ -239,7 +236,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 
 	// Functions for overhead costs management
 	const updateOverheadCost = (id: string, field: string, value: unknown) => {
-		const updatedCosts = state.overheadCosts.map((cost) => {
+		const updatedCosts = safeMap(state.overheadCosts, (cost) => {
 			if (cost.id === id) {
 				return { ...cost, [field]: value };
 			}
@@ -250,7 +247,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 	};
 
 	const removeOverheadCost = (id: string) => {
-		const updatedCosts = state.overheadCosts.filter((cost) => cost.id !== id);
+		const updatedCosts = safeFilter(state.overheadCosts, (cost) => cost.id !== id);
 		updateState("overheadCosts", updatedCosts);
 	};
 
@@ -263,7 +260,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 			monthlyCost: 0,
 		};
 
-		updateState("overheadCosts", [...state.overheadCosts, newCost]);
+		updateState("overheadCosts", [...(state.overheadCosts || []), newCost]);
 	};
 
 	// Calculate wastage percentage based on daily work hours and billable hours
@@ -290,7 +287,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 			// Calculate total monthly cost for all office staff
 			let monthlyCost = 0;
 
-			state.officeStaff.forEach((staff) => {
+			safeMap(state.officeStaff, (staff) => {
 				// Ensure values are numbers and not NaN
 				const hourlyRate = typeof staff.hourlyRate === "number" && !isNaN(staff.hourlyRate) ? staff.hourlyRate : 0;
 				const monthlySalary = typeof staff.monthlySalary === "number" && !isNaN(staff.monthlySalary) ? staff.monthlySalary : 0;
@@ -302,6 +299,9 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 						: monthlySalary;
 
 				monthlyCost += staffMonthlyCost;
+
+				// Return value not used but required for safeMap
+				return staff;
 			});
 
 			setTotalOfficeStaffCost(monthlyCost);
@@ -317,13 +317,16 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 
 	// Calculate overhead cost per hour
 	useEffect(() => {
-		const totalMonthlyOverhead = Array.isArray(state.overheadCosts) ? state.overheadCosts.reduce((sum: number, cost: OverheadCost) => sum + (cost.monthlyCost || 0), 0) : 0;
+		const totalMonthlyOverhead = safeReduce(state.overheadCosts || [], (sum, cost) => sum + (cost.monthlyCost || 0), 0);
 
 		// Calculate total monthly billable hours across all crews
 		const totalMonthlyBillableHours = state.monthlyBillableHours * state.totalCrews;
 		const perHourOverheadCost = totalMonthlyBillableHours > 0 ? totalMonthlyOverhead / totalMonthlyBillableHours : 0;
 
 		setOverheadCostPerHour(perHourOverheadCost);
+
+		// Log for debugging
+		console.log(`Overhead calculation: ${totalMonthlyOverhead} / ${totalMonthlyBillableHours} = ${perHourOverheadCost} per billable hour`);
 	}, [state.overheadCosts, state.monthlyBillableHours, state.totalCrews]);
 
 	// Calculate all derived values when inputs change
@@ -335,17 +338,24 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 		const billableHours = 1; // Using 1 hour as base for hourly rate calculations
 
 		// Get per-crew values by dividing by number of crews
-		const crewCount = Math.max(1, state.crews.length);
+		const crewCount = Math.max(1, state.crews?.length || 0);
 
-		if (state.commissionEnabled) {
+		// Log crew count for debugging
+		console.log(`Calculating rate for ${crewCount} crews`);
+
+		if (state.commissionEnabled === true && Array.isArray(state.crews)) {
 			// When commission is enabled, calculate total commission percentage
 			// This is per crew, so we need to divide by crew count
 			const totalCommissionPercentage =
-				state.crews.reduce((sum, crew) => {
-					// Calculate the total commission for this crew
-					const crewCommission = crew.workers.reduce((crewSum, worker) => crewSum + worker.commission, 0);
-					return sum + crewCommission;
-				}, 0) / crewCount;
+				safeReduce(
+					state.crews,
+					(sum, crew) => {
+						// Calculate the total commission for this crew
+						const crewCommission = safeReduce(crew.workers, (crewSum, worker) => crewSum + worker.commission, 0);
+						return sum + crewCommission;
+					},
+					0
+				) / crewCount;
 
 			// For recommended rate calculations, we'll set these temporarily
 			// and calculate the proper values after determining the recommended rate
@@ -376,10 +386,75 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 				...prev,
 				recommendedRate: recommended,
 			}));
-		} else {
+
+			// Save general service rate
+			const serviceRateData = {
+				rateName: state.rateName || title,
+				recommendedRate: recommended,
+				serviceType: serviceType,
+				wastagePercent: state.wastagePercent,
+				desiredMargin: state.desiredMargin,
+				commissionEnabled: state.commissionEnabled,
+				dailyWorkHours: state.dailyWorkHours,
+				dailyBillableHours: state.dailyBillableHours,
+				lastUpdated: new Date().toISOString(),
+			};
+
+			// Save this service's general rate data in localStorage
+			try {
+				localStorage.setItem(`calculator-state-${serviceType}`, JSON.stringify(serviceRateData));
+			} catch (error) {
+				console.error(`Error saving general rate for ${serviceType}:`, error);
+			}
+
+			// Save rates for each individual crew
+			state.crews.forEach((crew) => {
+				// Create a unique ID for this crew's rate
+				const crewRateId = `${serviceType}-crew-${crew.name.toLowerCase().replace(/\s+/g, "-")}`;
+
+				// Create the rate data
+				const crewRateData = {
+					rateName: `${state.rateName || title} - ${crew.name}`,
+					recommendedRate: recommended,
+					serviceType: serviceType,
+					crewId: crew.id,
+					crewName: crew.name,
+					wastagePercent: state.wastagePercent,
+					desiredMargin: state.desiredMargin,
+					commissionEnabled: state.commissionEnabled,
+					dailyWorkHours: state.dailyWorkHours,
+					dailyBillableHours: state.dailyBillableHours,
+					lastUpdated: new Date().toISOString(),
+				};
+
+				// Save this crew's rate data in localStorage
+				try {
+					localStorage.setItem(`calculator-state-${crewRateId}`, JSON.stringify(crewRateData));
+				} catch (error) {
+					console.error(`Error saving rate for crew ${crew.name}:`, error);
+				}
+			});
+		} else if (Array.isArray(state.crews)) {
 			// Standard hourly rate model - account for total hours including wastage
-			// Calculate per-crew costs by dividing by crew count
-			const perCrewHourlyRateSum = state.crews.reduce((sum, crew) => sum + crew.workers.reduce((crewSum, worker) => crewSum + worker.rate, 0), 0) / crewCount;
+
+			// Calculate the sum of all worker rates per crew
+			let totalCrewRates = 0;
+			let totalWorkers = 0;
+
+			// Calculate total workers and their combined hourly rates across all crews
+			state.crews.forEach((crew) => {
+				totalWorkers += crew.workers.length;
+				totalCrewRates += safeReduce(crew.workers, (sum, worker) => sum + worker.rate, 0);
+			});
+
+			// Calculate average rate per worker across all crews
+			const avgWorkerRate = totalWorkers > 0 ? totalCrewRates / totalWorkers : 0;
+
+			// For each crew, calculate the total labor cost based on number of workers
+			const avgWorkersPerCrew = totalWorkers / Math.max(1, state.crews.length);
+			const perCrewHourlyRateSum = avgWorkerRate * avgWorkersPerCrew;
+
+			console.log(`Total workers: ${totalWorkers}, Average rate: $${formatCurrency(avgWorkerRate)}, Workers per crew: ${formatCurrency(avgWorkersPerCrew)}, Total hourly rate per crew: $${formatCurrency(perCrewHourlyRateSum)}`);
 
 			// Calculate for a single crew
 			const billableOnlyCost = perCrewHourlyRateSum * billableHours;
@@ -400,6 +475,16 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 			// Apply margin multiplier to get recommended rate
 			const recommended = baseCostPerBillableHour * marginMultiplier;
 
+			// Debug logging
+			console.log(`Hourly Rate Calculation with ${crewCount} crews:
+- Crew hourly labor: $${formatCurrency(perCrewHourlyRateSum)}/hr per crew
+- With wastage (${state.wastagePercent}%): $${formatCurrency(laborCost)}/hr
+- Office staff cost: $${formatCurrency(officeStaffCostPerHour)}/billable hour (spread across ${state.totalCrews} crews)
+- Overhead cost: $${formatCurrency(overheadCostPerHour)}/billable hour (spread across ${state.totalCrews} crews)
+- Base cost per billable hour: $${formatCurrency(baseCostPerBillableHour)}
+- With ${state.desiredMargin}% margin: $${formatCurrency(recommended)}/hr
+`);
+
 			setRecommendedRate(recommended);
 
 			// Save recommendedRate in state for persistence
@@ -407,6 +492,54 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 				...prev,
 				recommendedRate: recommended,
 			}));
+
+			// Save general service rate
+			const serviceRateData = {
+				rateName: state.rateName || title,
+				recommendedRate: recommended,
+				serviceType: serviceType,
+				wastagePercent: state.wastagePercent,
+				desiredMargin: state.desiredMargin,
+				commissionEnabled: state.commissionEnabled,
+				dailyWorkHours: state.dailyWorkHours,
+				dailyBillableHours: state.dailyBillableHours,
+				lastUpdated: new Date().toISOString(),
+			};
+
+			// Save this service's general rate data in localStorage
+			try {
+				localStorage.setItem(`calculator-state-${serviceType}`, JSON.stringify(serviceRateData));
+			} catch (error) {
+				console.error(`Error saving general rate for ${serviceType}:`, error);
+			}
+
+			// Save rates for each individual crew
+			state.crews.forEach((crew) => {
+				// Create a unique ID for this crew's rate
+				const crewRateId = `${serviceType}-crew-${crew.name.toLowerCase().replace(/\s+/g, "-")}`;
+
+				// Create the rate data
+				const crewRateData = {
+					rateName: `${state.rateName || title} - ${crew.name}`,
+					recommendedRate: recommended,
+					serviceType: serviceType,
+					crewId: crew.id,
+					crewName: crew.name,
+					wastagePercent: state.wastagePercent,
+					desiredMargin: state.desiredMargin,
+					commissionEnabled: state.commissionEnabled,
+					dailyWorkHours: state.dailyWorkHours,
+					dailyBillableHours: state.dailyBillableHours,
+					lastUpdated: new Date().toISOString(),
+				};
+
+				// Save this crew's rate data in localStorage
+				try {
+					localStorage.setItem(`calculator-state-${crewRateId}`, JSON.stringify(crewRateData));
+				} catch (error) {
+					console.error(`Error saving rate for crew ${crew.name}:`, error);
+				}
+			});
 		}
 
 		setTotalLaborCost(laborCost);
@@ -429,7 +562,28 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 		updateState("monthlyBillableHours", Math.round(calculatedMonthlyBillableHours));
 	}, [state.totalCrews, state.dailyBillableHours, updateState]);
 
-	const totalMonthlyOverhead = state.overheadCosts.reduce((sum, cost) => sum + (cost.monthlyCost || 0), 0);
+	const totalMonthlyOverhead = safeReduce(state.overheadCosts || [], (sum, cost) => sum + (cost.monthlyCost || 0), 0);
+	const crews = Array.isArray(state.crews) ? state.crews : [];
+
+	// Other calculations that use crews
+	const totalWorkersPerCrew = safeReduce(crews, (sum, crew) => sum + crew.workers.length, 0) / Math.max(1, crews.length);
+
+	// Calculate total workers and their combined hourly rates across all crews
+	let totalCrewRates = 0;
+	let totalWorkers = 0;
+
+	crews.forEach((crew) => {
+		totalWorkers += crew.workers.length;
+		totalCrewRates += safeReduce(crew.workers, (sum, worker) => sum + worker.rate, 0);
+	});
+
+	// Calculate average rate per worker across all crews
+	const avgWorkerRate = totalWorkers > 0 ? totalCrewRates / totalWorkers : 0;
+
+	// For each crew, calculate the total labor cost based on number of workers
+	const avgWorkersPerCrew = totalWorkers / Math.max(1, crews.length);
+
+	const totalCommissionPercentage = state.commissionEnabled ? safeReduce(crews, (sum, crew) => sum + safeReduce(crew.workers, (crewSum, worker) => crewSum + worker.commission, 0), 0) / Math.max(1, crews.length) : 0;
 
 	return (
 		<div className="space-y-6">
@@ -471,7 +625,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 												<TooltipTrigger asChild>
 													<strong className="cursor-help">{state.wastagePercent}%</strong>
 												</TooltipTrigger>
-												<TooltipContent className="max-w-80">
+												<TooltipContent>
 													<div className="space-y-1 text-xs">
 														<h4 className="font-semibold pb-1">Time Wastage Calculation</h4>
 														<div>Formula: (Non-billable hours ÷ Total hours) × 100</div>
@@ -480,6 +634,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 														</div>
 														<div>Non-billable hours: {state.dailyWorkHours - state.dailyBillableHours}</div>
 														<div>Total hours: {state.dailyWorkHours}</div>
+														<div>Average workers per crew: {formatCurrency(totalWorkersPerCrew)}</div>
 													</div>
 												</TooltipContent>
 											</Tooltip>
@@ -490,7 +645,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 							</div>
 
 							<div className="grid gap-2">
-								<CrewConfiguration serviceType={serviceType} crews={state.crews} setCrews={(crews: Crew[]) => updateState("crews", crews)} selectedCrewId={state.selectedCrewId} setSelectedCrewId={(id: string) => updateState("selectedCrewId", id)} commissionEnabled={state.commissionEnabled} onCommissionToggle={handleCommissionToggle} />
+								<CrewConfiguration serviceType={serviceType} crews={crews} setCrews={(crews: Crew[]) => updateState("crews", crews)} selectedCrewId={state.selectedCrewId} setSelectedCrewId={(id: string) => updateState("selectedCrewId", id)} commissionEnabled={state.commissionEnabled} onCommissionToggle={handleCommissionToggle} />
 							</div>
 
 							<Accordion type="single" collapsible value={state.showOfficeStaffSection ? "office-staff" : ""} onValueChange={(value) => updateState("showOfficeStaffSection", value === "office-staff")}>
@@ -510,7 +665,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 												</div>
 												<div className="flex items-center gap-2">
 													<Badge variant="outline" className="ml-2">
-														${totalOfficeStaffCost.toFixed(2)}/month
+														${formatCurrency(totalOfficeStaffCost)}/month
 													</Badge>
 												</div>
 											</div>
@@ -528,7 +683,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 
 																	<div className="flex items-center gap-2">
 																		<Badge variant="secondary" className="text-xs">
-																			{staff.payType === "hourly" ? `$${staff.hourlyRate}/hr` : `$${staff.monthlySalary}/mo`}
+																			{staff.payType === "hourly" ? `$${formatCurrency(staff.hourlyRate)}/hr` : `$${formatCurrency(staff.monthlySalary)}/mo`}
 																		</Badge>
 
 																		{state.officeStaff && state.officeStaff.length > 1 && (
@@ -588,22 +743,22 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 																				<>
 																					<div className="flex justify-between">
 																						<span className="text-muted-foreground">Monthly cost:</span>
-																						<span className="font-medium">${((staff.hourlyRate || 0) * 40 * 4.33).toFixed(2)}</span>
+																						<span className="font-medium">${formatCurrency((staff.hourlyRate || 0) * 40 * 4.33)}</span>
 																					</div>
 																					<div className="flex justify-between">
 																						<span className="text-muted-foreground">Hourly equivalent:</span>
-																						<span className="font-medium">${(staff.hourlyRate || 0).toFixed(2)}/hour</span>
+																						<span className="font-medium">${formatCurrency(staff.hourlyRate || 0)}/hour</span>
 																					</div>
 																				</>
 																			) : (
 																				<>
 																					<div className="flex justify-between">
 																						<span className="text-muted-foreground">Monthly cost:</span>
-																						<span className="font-medium">${(staff.monthlySalary || 0).toFixed(2)}</span>
+																						<span className="font-medium">${formatCurrency(staff.monthlySalary || 0)}</span>
 																					</div>
 																					<div className="flex justify-between">
 																						<span className="text-muted-foreground">Hourly equivalent:</span>
-																						<span className="font-medium">${((staff.monthlySalary || 0) / (40 * 4.33)).toFixed(2)}/hour</span>
+																						<span className="font-medium">${formatCurrency((staff.monthlySalary || 0) / (40 * 4.33))}</span>
 																					</div>
 																				</>
 																			)}
@@ -628,7 +783,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 														<TooltipProvider>
 															<Tooltip>
 																<TooltipTrigger asChild>
-																	<span className="font-medium cursor-help">${totalOfficeStaffCost.toFixed(2)}/month</span>
+																	<span className="font-medium cursor-help">${formatCurrency(totalOfficeStaffCost)}/month</span>
 																</TooltipTrigger>
 																<TooltipContent>
 																	<div className="space-y-1 text-xs max-w-72">
@@ -637,10 +792,10 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 																		<div>Calculation:</div>
 																		{state.officeStaff?.map((staff) => (
 																			<div key={staff.id}>
-																				{staff.title}: ${staff.payType === "hourly" ? ((staff.hourlyRate || 0) * 40 * 4.33).toFixed(2) : (staff.monthlySalary || 0).toFixed(2)}
+																				{staff.title}: ${formatCurrency(staff.payType === "hourly" ? (staff.hourlyRate || 0) * 40 * 4.33 : staff.monthlySalary || 0)}
 																			</div>
 																		))}
-																		<div className="font-medium pt-1">Total: ${totalOfficeStaffCost.toFixed(2)}</div>
+																		<div className="font-medium pt-1">Total: ${formatCurrency(totalOfficeStaffCost)}</div>
 																	</div>
 																</TooltipContent>
 															</Tooltip>
@@ -651,16 +806,16 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 														<TooltipProvider>
 															<Tooltip>
 																<TooltipTrigger asChild>
-																	<span className="font-medium cursor-help">${officeStaffCostPerHour.toFixed(2)}/hour</span>
+																	<span className="font-medium cursor-help">${formatCurrency(officeStaffCostPerHour)}/hour</span>
 																</TooltipTrigger>
 																<TooltipContent>
 																	<div className="space-y-1 text-xs max-w-72">
 																		<h4 className="font-semibold pb-1">Office Staff Cost Per Billable Hour</h4>
 																		<div>Formula: Total Monthly Office Staff Cost ÷ Monthly Billable Hours</div>
 																		<div>
-																			Calculation: ${totalOfficeStaffCost.toFixed(2)} ÷ {state.monthlyBillableHours} = ${officeStaffCostPerHour.toFixed(2)}
+																			Calculation: ${formatCurrency(totalOfficeStaffCost)} ÷ {state.monthlyBillableHours} = ${formatCurrency(officeStaffCostPerHour)}
 																		</div>
-																		<div>Total Monthly Office Staff Cost: ${totalOfficeStaffCost.toFixed(2)}</div>
+																		<div>Total Monthly Office Staff Cost: ${formatCurrency(totalOfficeStaffCost)}</div>
 																		<div>Monthly Billable Hours: {state.monthlyBillableHours}</div>
 																	</div>
 																</TooltipContent>
@@ -715,10 +870,10 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 											<div className="space-y-3">
 												<div className="flex items-center justify-between">
 													<Label>Overhead Expenses (Monthly)</Label>
-													<span className="text-sm text-muted-foreground">${totalMonthlyOverhead.toFixed(2)}/month</span>
+													<span className="text-sm text-muted-foreground">${formatCurrency(totalMonthlyOverhead)}/month</span>
 												</div>
 
-												{state.overheadCosts.map((cost) => (
+												{(state.overheadCosts || []).map((cost) => (
 													<div key={cost.id} className="flex items-center gap-2">
 														<div className="grid grid-cols-2 gap-2 flex-grow">
 															<Input value={cost.name || ""} onChange={(e) => updateOverheadCost(cost.id, "name", e.target.value)} placeholder="Expense name" />
@@ -727,7 +882,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 																<Input type="number" min="0" value={cost.monthlyCost || 0} onChange={(e) => updateOverheadCost(cost.id, "monthlyCost", Number(e.target.value) || 0)} placeholder="Monthly cost" className="pl-7" />
 															</div>
 														</div>
-														<Button variant="outline" size="icon" onClick={() => removeOverheadCost(cost.id)} disabled={state.overheadCosts.length === 1}>
+														<Button variant="outline" size="icon" onClick={() => removeOverheadCost(cost.id)} disabled={(state.overheadCosts || []).length === 1}>
 															<Minus className="h-4 w-4" />
 														</Button>
 													</div>
@@ -743,16 +898,16 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 													<TooltipProvider>
 														<Tooltip>
 															<TooltipTrigger asChild>
-																<span className="cursor-help">${overheadCostPerHour.toFixed(2)}/hour</span>
+																<span className="cursor-help">${formatCurrency(overheadCostPerHour)}/hour</span>
 															</TooltipTrigger>
 															<TooltipContent>
 																<div className="space-y-1 text-xs max-w-72">
 																	<h4 className="font-semibold pb-1">Overhead Cost Per Billable Hour</h4>
 																	<div>Formula: Total Monthly Overhead ÷ Monthly Billable Hours</div>
 																	<div>
-																		Calculation: ${totalMonthlyOverhead.toFixed(2)} ÷ {state.monthlyBillableHours} = ${overheadCostPerHour.toFixed(2)}
+																		Calculation: ${formatCurrency(totalMonthlyOverhead)} ÷ {state.monthlyBillableHours} = ${formatCurrency(overheadCostPerHour)}
 																	</div>
-																	<div>Total Monthly Overhead: ${totalMonthlyOverhead.toFixed(2)}</div>
+																	<div>Total Monthly Overhead: ${formatCurrency(totalMonthlyOverhead)}</div>
 																	<div>Monthly Billable Hours: {state.monthlyBillableHours}</div>
 																</div>
 															</TooltipContent>
@@ -780,7 +935,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 					<Card>
 						<CardHeader>
 							<CardTitle>Rate Analysis</CardTitle>
-							<CardDescription>Real-time calculation of hourly rates for a {state.crews.length}-crew operation</CardDescription>
+							<CardDescription>Real-time calculation of hourly rates for a {(state.crews || []).length}-crew operation</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-6">
 							<div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-blue-800 mb-3">
@@ -794,21 +949,21 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 								</div>
 								<ul className="text-sm list-disc pl-5 space-y-1">
 									<li>
-										<strong>Office staff costs</strong> are distributed across all billable hours
+										<strong>Office staff costs</strong> are distributed across all billable hours from all crews
 									</li>
 									<li>
-										<strong>Overhead expenses</strong> are shared among more crews
+										<strong>Overhead expenses</strong> are shared among more billable hours with more crews
 									</li>
 									<li>
-										More crews = <strong>lower cost per billable hour</strong>
+										More crews = <strong>lower overhead cost per billable hour</strong>
 									</li>
 								</ul>
 								{state.crews.length > 1 ? (
 									<div className="text-sm mt-2 font-medium">
-										You currently have {state.crews.length} crews, lowering your overhead/office cost to ${(officeStaffCostPerHour + overheadCostPerHour).toFixed(2)}/hr per crew.
+										With {state.crews.length} crews, your overhead and office cost is ${formatCurrency(officeStaffCostPerHour + overheadCostPerHour)}/hr per billable hour. With just 1 crew, it would be approximately ${formatCurrency((totalMonthlyOverhead + totalOfficeStaffCost) / (state.monthlyBillableHours / state.totalCrews))}hr.
 									</div>
 								) : (
-									<div className="text-sm mt-2">Adding more crews will reduce your per-crew hourly rate.</div>
+									<div className="text-sm mt-2">Adding more crews would reduce your overhead cost per billable hour from ${formatCurrency(officeStaffCostPerHour + overheadCostPerHour)}/hr, potentially lowering your required hourly rate.</div>
 								)}
 							</div>
 
@@ -822,15 +977,18 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 													<TooltipProvider>
 														<Tooltip>
 															<TooltipTrigger asChild>
-																<span className="cursor-help">${(totalLaborCost - wastageOnlyCost).toFixed(2)}</span>
+																<span className="cursor-help">${formatCurrency(totalLaborCost - wastageOnlyCost)}</span>
 															</TooltipTrigger>
 															<TooltipContent>
 																<div className="space-y-1 text-xs max-w-72">
 																	<h4 className="font-semibold pb-1">Base Labor Cost</h4>
-																	<div>Formula: Average Worker Hourly Rates per Crew × Billable Hours</div>
-																	<div>Workers per Crew: {state.crews.reduce((sum, crew) => sum + crew.workers.length, 0) / Math.max(1, state.crews.length)}</div>
-																	<div>Average Rate: ${state.crews.reduce((sum, crew) => sum + crew.workers.reduce((crewSum, worker) => crewSum + worker.rate, 0), 0) / Math.max(1, state.crews.length)}</div>
+																	<div>Formula: Average Worker Rate × Workers Per Crew × Billable Hours</div>
+																	<div>Workers per Crew: {formatCurrency(avgWorkersPerCrew)}</div>
+																	<div>Average Worker Rate: ${formatCurrency(avgWorkerRate)}</div>
 																	<div>Billable Hours: 1</div>
+																	<div>
+																		Calculation: ${formatCurrency(avgWorkerRate)} × {formatCurrency(avgWorkersPerCrew)} × 1 = ${formatCurrency(totalLaborCost - wastageOnlyCost)}
+																	</div>
 																</div>
 															</TooltipContent>
 														</Tooltip>
@@ -843,14 +1001,14 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 													<TooltipProvider>
 														<Tooltip>
 															<TooltipTrigger asChild>
-																<span className="cursor-help">${wastageOnlyCost.toFixed(2)}</span>
+																<span className="cursor-help">${formatCurrency(wastageOnlyCost)}</span>
 															</TooltipTrigger>
 															<TooltipContent>
 																<div className="space-y-1 text-xs max-w-72">
 																	<h4 className="font-semibold pb-1">Wastage Cost</h4>
 																	<div>Formula: Total Labor Cost - Base Labor Cost</div>
 																	<div>
-																		Calculation: ${totalLaborCost.toFixed(2)} - ${(totalLaborCost - wastageOnlyCost).toFixed(2)} = ${wastageOnlyCost.toFixed(2)}
+																		Calculation: ${formatCurrency(totalLaborCost)} - ${formatCurrency(totalLaborCost - wastageOnlyCost)} = ${formatCurrency(wastageOnlyCost)}
 																	</div>
 																	<div>Wastage Percentage: {state.wastagePercent}%</div>
 																</div>
@@ -865,16 +1023,17 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 													<TooltipProvider>
 														<Tooltip>
 															<TooltipTrigger asChild>
-																<span className="cursor-help">${totalLaborCost.toFixed(2)}</span>
+																<span className="cursor-help">${formatCurrency(totalLaborCost)}</span>
 															</TooltipTrigger>
 															<TooltipContent>
 																<div className="space-y-1 text-xs max-w-72">
 																	<h4 className="font-semibold pb-1">Total Labor Cost</h4>
 																	<div>Formula: Average Worker Hourly Rates per Crew × Total Hours (including wastage)</div>
 																	<div>
-																		Calculation: ${state.crews.reduce((sum, crew) => sum + crew.workers.reduce((crewSum, worker) => crewSum + worker.rate, 0), 0) / Math.max(1, state.crews.length)} × {totalHours.toFixed(2)} = ${totalLaborCost.toFixed(2)}
+																		Calculation: ${formatCurrency(avgWorkerRate)} × {formatCurrency(totalHours)} = ${formatCurrency(totalLaborCost)}
 																	</div>
-																	<div>Total Hours (with wastage): {totalHours.toFixed(2)}</div>
+																	<div>Total Hours (with wastage): {formatCurrency(totalHours)}</div>
+																	<div className="mt-1 text-blue-600">Note: This rate represents the total worker rates from all crews divided by the number of crews ({state.crews?.length || 0}).</div>
 																</div>
 															</TooltipContent>
 														</Tooltip>
@@ -890,17 +1049,17 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 												<TooltipProvider>
 													<Tooltip>
 														<TooltipTrigger asChild>
-															<span className="cursor-help">${totalCommission.toFixed(2)}</span>
+															<span className="cursor-help">${formatCurrency(totalCommission)}</span>
 														</TooltipTrigger>
 														<TooltipContent>
 															<div className="space-y-1 text-xs max-w-72">
 																<h4 className="font-semibold pb-1">Estimated Commission</h4>
 																<div>Formula: Estimated Revenue × Commission Percentage</div>
 																<div>
-																	Calculation: ${recommendedRate.toFixed(2)} × {(state.crews.reduce((sum, crew) => sum + crew.workers.reduce((crewSum, worker) => crewSum + worker.commission, 0), 0) / Math.max(1, state.crews.length)).toFixed(1)}% = ${totalCommission.toFixed(2)}
+																	Calculation: ${formatCurrency(recommendedRate)} × {formatCurrency(totalCommissionPercentage)}% = ${formatCurrency(totalCommission)}
 																</div>
-																<div>Estimated Revenue: ${recommendedRate.toFixed(2)}</div>
-																<div>Commission Percentage: {(state.crews.reduce((sum, crew) => sum + crew.workers.reduce((crewSum, worker) => crewSum + worker.commission, 0), 0) / Math.max(1, state.crews.length)).toFixed(1)}%</div>
+																<div>Estimated Revenue: ${formatCurrency(recommendedRate)}</div>
+																<div>Commission Percentage: {formatCurrency(totalCommissionPercentage)}%</div>
 															</div>
 														</TooltipContent>
 													</Tooltip>
@@ -914,16 +1073,16 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<span className="cursor-help">${officeStaffCostPerHour.toFixed(2)}</span>
+														<span className="cursor-help">${formatCurrency(officeStaffCostPerHour)}</span>
 													</TooltipTrigger>
 													<TooltipContent>
 														<div className="space-y-1 text-xs max-w-72">
 															<h4 className="font-semibold pb-1">Office Staff Cost Per Billable Hour</h4>
 															<div>Formula: Total Monthly Office Staff Cost ÷ Monthly Billable Hours</div>
 															<div>
-																Calculation: ${totalOfficeStaffCost.toFixed(2)} ÷ {state.monthlyBillableHours} = ${officeStaffCostPerHour.toFixed(2)}
+																Calculation: ${formatCurrency(totalOfficeStaffCost)} ÷ {state.monthlyBillableHours} = ${formatCurrency(officeStaffCostPerHour)}
 															</div>
-															<div>Total Monthly Office Staff Cost: ${totalOfficeStaffCost.toFixed(2)}</div>
+															<div>Total Monthly Office Staff Cost: ${formatCurrency(totalOfficeStaffCost)}</div>
 															<div>Monthly Billable Hours: {state.monthlyBillableHours}</div>
 														</div>
 													</TooltipContent>
@@ -937,16 +1096,16 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<span className="cursor-help">${overheadCostPerHour.toFixed(2)}</span>
+														<span className="cursor-help">${formatCurrency(overheadCostPerHour)}</span>
 													</TooltipTrigger>
 													<TooltipContent>
 														<div className="space-y-1 text-xs max-w-72">
 															<h4 className="font-semibold pb-1">Overhead Cost Per Billable Hour</h4>
 															<div>Formula: Total Monthly Overhead ÷ Monthly Billable Hours</div>
 															<div>
-																Calculation: ${totalMonthlyOverhead.toFixed(2)} ÷ {state.monthlyBillableHours} = ${overheadCostPerHour.toFixed(2)}
+																Calculation: ${formatCurrency(totalMonthlyOverhead)} ÷ {state.monthlyBillableHours} = ${formatCurrency(overheadCostPerHour)}
 															</div>
-															<div>Total Monthly Overhead: ${totalMonthlyOverhead.toFixed(2)}</div>
+															<div>Total Monthly Overhead: ${formatCurrency(totalMonthlyOverhead)}</div>
 															<div>Monthly Billable Hours: {state.monthlyBillableHours}</div>
 														</div>
 													</TooltipContent>
@@ -960,7 +1119,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<span className="cursor-help">${totalCost.toFixed(2)}</span>
+														<span className="cursor-help">${formatCurrency(totalCost)}</span>
 													</TooltipTrigger>
 													<TooltipContent>
 														<div className="space-y-1 text-xs max-w-72">
@@ -969,22 +1128,22 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 																<>
 																	<div>Formula: Labor Cost + Commission + Office Staff Cost + Overhead Cost</div>
 																	<div>
-																		Calculation: ${totalLaborCost.toFixed(2)} + ${totalCommission.toFixed(2)} + ${officeStaffCostPerHour.toFixed(2)} + ${overheadCostPerHour.toFixed(2)} = ${totalCost.toFixed(2)}
+																		Calculation: ${formatCurrency(totalLaborCost)} + ${formatCurrency(totalCommission)} + ${formatCurrency(officeStaffCostPerHour)} + ${formatCurrency(overheadCostPerHour)} = ${formatCurrency(totalCost)}
 																	</div>
-																	<div>Labor Cost: ${totalLaborCost.toFixed(2)}</div>
-																	<div>Commission: ${totalCommission.toFixed(2)}</div>
+																	<div>Labor Cost: ${formatCurrency(totalLaborCost)}</div>
+																	<div>Commission: ${formatCurrency(totalCommission)}</div>
 																</>
 															) : (
 																<>
 																	<div>Formula: Labor Cost + Office Staff Cost + Overhead Cost</div>
 																	<div>
-																		Calculation: ${totalLaborCost.toFixed(2)} + ${officeStaffCostPerHour.toFixed(2)} + ${overheadCostPerHour.toFixed(2)} = ${totalCost.toFixed(2)}
+																		Calculation: ${formatCurrency(totalLaborCost)} + ${formatCurrency(officeStaffCostPerHour)} + ${formatCurrency(overheadCostPerHour)} = ${formatCurrency(totalCost)}
 																	</div>
-																	<div>Labor Cost: ${totalLaborCost.toFixed(2)}</div>
+																	<div>Labor Cost: ${formatCurrency(totalLaborCost)}</div>
 																</>
 															)}
-															<div>Office Staff Cost: ${officeStaffCostPerHour.toFixed(2)}</div>
-															<div>Overhead Cost: ${overheadCostPerHour.toFixed(2)}</div>
+															<div>Office Staff Cost: ${formatCurrency(officeStaffCostPerHour)}</div>
+															<div>Overhead Cost: ${formatCurrency(overheadCostPerHour)}</div>
 														</div>
 													</TooltipContent>
 												</Tooltip>
@@ -997,14 +1156,14 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<span className="cursor-help">${(recommendedRate - totalCost).toFixed(2)}</span>
+														<span className="cursor-help">${formatCurrency(recommendedRate - totalCost)}</span>
 													</TooltipTrigger>
 													<TooltipContent>
 														<div className="space-y-1 text-xs max-w-72">
 															<h4 className="font-semibold pb-1">Profit Margin</h4>
 															<div>Formula: Recommended Rate - Total Cost</div>
 															<div>
-																Calculation: ${recommendedRate.toFixed(2)} - ${totalCost.toFixed(2)} = ${(recommendedRate - totalCost).toFixed(2)}
+																Calculation: ${formatCurrency(recommendedRate)} - ${formatCurrency(totalCost)} = ${formatCurrency(recommendedRate - totalCost)}
 															</div>
 															<div>Desired Margin: {state.desiredMargin}%</div>
 															<div>This is the profit per billable hour at your recommended rate</div>
@@ -1020,7 +1179,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<span className="cursor-help">${recommendedRate.toFixed(2)}</span>
+														<span className="cursor-help">${formatCurrency(recommendedRate)}</span>
 													</TooltipTrigger>
 													<TooltipContent>
 														<div className="space-y-1 text-xs max-w-72">
@@ -1029,11 +1188,11 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 																<>
 																	<div>Formula: ((Labor + Overhead) ÷ Billable Hours) ÷ (1 - Margin%/100)</div>
 																	<div>
-																		Calculation: ((${totalLaborCost.toFixed(2)} + ${officeStaffCostPerHour.toFixed(2)} + ${overheadCostPerHour.toFixed(2)}) ÷ 1) ÷ (1 - {state.desiredMargin}/100) = ${recommendedRate.toFixed(2)}
+																		Calculation: ((${formatCurrency(totalLaborCost)} + ${formatCurrency(officeStaffCostPerHour)} + ${formatCurrency(overheadCostPerHour)}) ÷ 1) ÷ (1 - {state.desiredMargin}/100) = ${formatCurrency(recommendedRate)}
 																	</div>
-																	<div>Labor Cost: ${totalLaborCost.toFixed(2)}</div>
-																	<div>Office Staff Cost: ${officeStaffCostPerHour.toFixed(2)}</div>
-																	<div>Overhead Cost: ${overheadCostPerHour.toFixed(2)}</div>
+																	<div>Labor Cost: ${formatCurrency(totalLaborCost)}</div>
+																	<div>Office Staff Cost: ${formatCurrency(officeStaffCostPerHour)}</div>
+																	<div>Overhead Cost: ${formatCurrency(overheadCostPerHour)}</div>
 																	<div>Desired Margin: {state.desiredMargin}%</div>
 																	<div>Margin Multiplier: {(1 / (1 - state.desiredMargin / 100)).toFixed(3)}</div>
 																</>
@@ -1041,11 +1200,11 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 																<>
 																	<div>Formula: (Overhead) ÷ (Billable Hours × (1 - Commission% - Margin%))</div>
 																	<div>
-																		Calculation: (${officeStaffCostPerHour.toFixed(2)} + ${overheadCostPerHour.toFixed(2)}) ÷ (1 × (1 - {(state.crews.reduce((sum, crew) => sum + crew.workers.reduce((crewSum, worker) => crewSum + worker.commission, 0), 0) / Math.max(1, state.crews.length)).toFixed(1)}/100 - {state.desiredMargin}/100)) = ${recommendedRate.toFixed(2)}
+																		Calculation: (${formatCurrency(officeStaffCostPerHour)} + ${formatCurrency(overheadCostPerHour)}) ÷ (1 × (1 - {formatCurrency(totalCommissionPercentage)}/100 - {state.desiredMargin}/100)) = ${formatCurrency(recommendedRate)}
 																	</div>
-																	<div>Office Staff Cost: ${officeStaffCostPerHour.toFixed(2)}</div>
-																	<div>Overhead Cost: ${overheadCostPerHour.toFixed(2)}</div>
-																	<div>Commission Percentage: {(state.crews.reduce((sum, crew) => sum + crew.workers.reduce((crewSum, worker) => crewSum + worker.commission, 0), 0) / Math.max(1, state.crews.length)).toFixed(1)}%</div>
+																	<div>Office Staff Cost: ${formatCurrency(officeStaffCostPerHour)}</div>
+																	<div>Overhead Cost: ${formatCurrency(overheadCostPerHour)}</div>
+																	<div>Commission Percentage: {formatCurrency(totalCommissionPercentage)}%</div>
 																	<div>Desired Margin: {state.desiredMargin}%</div>
 																</>
 															)}
@@ -1063,13 +1222,159 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 									<Calculator className="mr-2 h-4 w-4" />
 									Key Metrics
 								</h3>
+
+								{/* Enhanced Financial Summary with special styling */}
+								<div className="mb-5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+									<h4 className="text-sm font-semibold text-blue-800 mb-3">Monthly Financial Summary</h4>
+									<div className="grid grid-cols-4 gap-4">
+										<div className="flex flex-col">
+											<span className="text-xs text-blue-600 font-medium">Gross Monthly Revenue</span>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span className="text-lg font-bold text-blue-800 cursor-help">${formatCurrency(recommendedRate * state.monthlyBillableHours)}</span>
+													</TooltipTrigger>
+													<TooltipContent>
+														<div className="space-y-1 text-xs max-w-72">
+															<h4 className="font-semibold pb-1">Gross Monthly Revenue</h4>
+															<div>Formula: Recommended Rate × Monthly Billable Hours</div>
+															<div>
+																Calculation: ${formatCurrency(recommendedRate)} × {state.monthlyBillableHours} = ${formatCurrency(recommendedRate * state.monthlyBillableHours)}
+															</div>
+															<div>Recommended Rate: ${formatCurrency(recommendedRate)}</div>
+															<div>Monthly Billable Hours: {state.monthlyBillableHours}</div>
+															<div>
+																Based on {state.totalCrews} crew{state.totalCrews !== 1 ? "s" : ""} with {state.dailyBillableHours} billable hours per day
+															</div>
+														</div>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										</div>
+										<div className="flex flex-col">
+											<span className="text-xs text-indigo-600 font-medium">Gross Revenue Per Crew</span>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span className="text-lg font-bold text-indigo-800 cursor-help">${formatCurrency(recommendedRate * (state.monthlyBillableHours / state.totalCrews))}</span>
+													</TooltipTrigger>
+													<TooltipContent>
+														<div className="space-y-1 text-xs max-w-72">
+															<h4 className="font-semibold pb-1">Gross Revenue Per Crew</h4>
+															<div>Formula: Recommended Rate × (Monthly Billable Hours ÷ Total Crews)</div>
+															<div>
+																Calculation: ${formatCurrency(recommendedRate)} × ({state.monthlyBillableHours} ÷ {state.totalCrews}) = ${formatCurrency(recommendedRate * (state.monthlyBillableHours / state.totalCrews))}
+															</div>
+															<div>Recommended Rate: ${formatCurrency(recommendedRate)}</div>
+															<div>Monthly Billable Hours Per Crew: {Math.round(state.monthlyBillableHours / state.totalCrews)}</div>
+															<div>Each crew generates this amount of revenue monthly.</div>
+														</div>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										</div>
+										<div className="flex flex-col">
+											<span className="text-xs text-green-600 font-medium">Net Monthly Profit</span>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span className="text-lg font-bold text-green-700 cursor-help">${formatCurrency((recommendedRate - totalCost) * state.monthlyBillableHours)}</span>
+													</TooltipTrigger>
+													<TooltipContent>
+														<div className="space-y-1 text-xs max-w-72">
+															<h4 className="font-semibold pb-1">Net Monthly Profit</h4>
+															<div>Formula: Profit Per Hour × Monthly Billable Hours</div>
+															<div>
+																Calculation: ${formatCurrency(recommendedRate - totalCost)} × {state.monthlyBillableHours} = ${formatCurrency((recommendedRate - totalCost) * state.monthlyBillableHours)}
+															</div>
+															<div>Profit Per Hour: ${formatCurrency(recommendedRate - totalCost)}</div>
+															<div>Monthly Billable Hours: {state.monthlyBillableHours}</div>
+															<div>
+																Based on {state.totalCrews} crew{state.totalCrews !== 1 ? "s" : ""} with {state.dailyBillableHours} billable hours per day
+															</div>
+														</div>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										</div>
+										<div className="flex flex-col">
+											<span className="text-xs text-purple-600 font-medium">Profit Percentage</span>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span className="text-lg font-bold text-purple-700 cursor-help">{state.desiredMargin}%</span>
+													</TooltipTrigger>
+													<TooltipContent>
+														<div className="space-y-1 text-xs max-w-72">
+															<h4 className="font-semibold pb-1">Profit Percentage</h4>
+															<div>This is your target profit margin percentage</div>
+															<div>At your recommended rate of ${formatCurrency(recommendedRate)}, you&apos;ll achieve this profit margin</div>
+															<div>Monthly profit: ${formatCurrency((recommendedRate - totalCost) * state.monthlyBillableHours)}</div>
+															<div>Monthly revenue: ${formatCurrency(recommendedRate * state.monthlyBillableHours)}</div>
+														</div>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										</div>
+									</div>
+								</div>
+
+								{/* Make Recommended Rate stand out more */}
+								<div className="mb-5 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg border border-amber-100">
+									<h4 className="text-sm font-semibold text-amber-800 mb-2">Recommended Hourly Rate</h4>
+									<div className="flex items-center justify-between">
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span className="text-2xl font-bold text-amber-700 cursor-help">${formatCurrency(recommendedRate)}</span>
+												</TooltipTrigger>
+												<TooltipContent>
+													<div className="space-y-1 text-xs max-w-72">
+														<h4 className="font-semibold pb-1">Recommended Hourly Rate Calculation</h4>
+														{!state.commissionEnabled ? (
+															<>
+																<div>Formula: ((Labor + Overhead) ÷ Billable Hours) ÷ (1 - Margin%/100)</div>
+																<div>
+																	Calculation: ((${formatCurrency(totalLaborCost)} + ${formatCurrency(officeStaffCostPerHour)} + ${formatCurrency(overheadCostPerHour)}) ÷ 1) ÷ (1 - {state.desiredMargin}/100) = ${formatCurrency(recommendedRate)}
+																</div>
+																<div>Labor Cost: ${formatCurrency(totalLaborCost)}</div>
+																<div>Office Staff Cost: ${formatCurrency(officeStaffCostPerHour)}</div>
+																<div>Overhead Cost: ${formatCurrency(overheadCostPerHour)}</div>
+																<div>Desired Margin: {state.desiredMargin}%</div>
+																<div>Margin Multiplier: {(1 / (1 - state.desiredMargin / 100)).toFixed(3)}</div>
+															</>
+														) : (
+															<>
+																<div>Formula: (Overhead) ÷ (Billable Hours × (1 - Commission% - Margin%))</div>
+																<div>
+																	Calculation: (${formatCurrency(officeStaffCostPerHour)} + ${formatCurrency(overheadCostPerHour)}) ÷ (1 × (1 - {formatCurrency(totalCommissionPercentage)}/100 - {state.desiredMargin}/100)) = ${formatCurrency(recommendedRate)}
+																</div>
+																<div>Office Staff Cost: ${formatCurrency(officeStaffCostPerHour)}</div>
+																<div>Overhead Cost: ${formatCurrency(overheadCostPerHour)}</div>
+																<div>Commission Percentage: {formatCurrency(totalCommissionPercentage)}%</div>
+																<div>Desired Margin: {state.desiredMargin}%</div>
+															</>
+														)}
+													</div>
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+										<div className="text-sm text-amber-700">
+											<div>With {state.desiredMargin}% profit margin</div>
+											<div>
+												For {state.totalCrews} crew{state.totalCrews !== 1 ? "s" : ""}
+											</div>
+										</div>
+									</div>
+								</div>
+
 								<div className="grid grid-cols-2 gap-4">
 									<div className="flex flex-col">
 										<span className="text-sm text-muted-foreground">Cost per Billable Hour</span>
 										<TooltipProvider>
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<span className="font-medium cursor-help">${totalCost.toFixed(2)}</span>
+													<span className="font-medium cursor-help">${formatCurrency(totalCost)}</span>
 												</TooltipTrigger>
 												<TooltipContent>
 													<div className="space-y-1 text-xs max-w-72">
@@ -1078,22 +1383,22 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 															<>
 																<div>Formula: Labor Cost + Commission + Office Staff Cost + Overhead Cost</div>
 																<div>
-																	Calculation: ${totalLaborCost.toFixed(2)} + ${totalCommission.toFixed(2)} + ${officeStaffCostPerHour.toFixed(2)} + ${overheadCostPerHour.toFixed(2)} = ${totalCost.toFixed(2)}
+																	Calculation: ${formatCurrency(totalLaborCost)} + ${formatCurrency(totalCommission)} + ${formatCurrency(officeStaffCostPerHour)} + ${formatCurrency(overheadCostPerHour)} = ${formatCurrency(totalCost)}
 																</div>
-																<div>Labor Cost: ${totalLaborCost.toFixed(2)}</div>
-																<div>Commission: ${totalCommission.toFixed(2)}</div>
+																<div>Labor Cost: ${formatCurrency(totalLaborCost)}</div>
+																<div>Commission: ${formatCurrency(totalCommission)}</div>
 															</>
 														) : (
 															<>
 																<div>Formula: Labor Cost + Office Staff Cost + Overhead Cost</div>
 																<div>
-																	Calculation: ${totalLaborCost.toFixed(2)} + ${officeStaffCostPerHour.toFixed(2)} + ${overheadCostPerHour.toFixed(2)} = ${totalCost.toFixed(2)}
+																	Calculation: ${formatCurrency(totalLaborCost)} + ${formatCurrency(officeStaffCostPerHour)} + ${formatCurrency(overheadCostPerHour)} = ${formatCurrency(totalCost)}
 																</div>
-																<div>Labor Cost: ${totalLaborCost.toFixed(2)}</div>
+																<div>Labor Cost: ${formatCurrency(totalLaborCost)}</div>
 															</>
 														)}
-														<div>Office Staff Cost: ${officeStaffCostPerHour.toFixed(2)}</div>
-														<div>Overhead Cost: ${overheadCostPerHour.toFixed(2)}</div>
+														<div>Office Staff Cost: ${formatCurrency(officeStaffCostPerHour)}</div>
+														<div>Overhead Cost: ${formatCurrency(overheadCostPerHour)}</div>
 													</div>
 												</TooltipContent>
 											</Tooltip>
@@ -1104,17 +1409,17 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 										<TooltipProvider>
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<span className="font-medium cursor-help">${(totalCost / totalHours).toFixed(2)}</span>
+													<span className="font-medium cursor-help">${formatCurrency(totalCost / totalHours)}</span>
 												</TooltipTrigger>
 												<TooltipContent>
 													<div className="space-y-1 text-xs max-w-72">
 														<h4 className="font-semibold pb-1">Cost Per Total Hour</h4>
 														<div>Formula: Total Cost ÷ Total Hours</div>
 														<div>
-															Calculation: ${totalCost.toFixed(2)} ÷ {totalHours.toFixed(2)} = ${(totalCost / totalHours).toFixed(2)}
+															Calculation: ${formatCurrency(totalCost)} ÷ {formatCurrency(totalHours)} = ${formatCurrency(totalCost / totalHours)}
 														</div>
-														<div>Total Cost: ${totalCost.toFixed(2)}</div>
-														<div>Total Hours: {totalHours.toFixed(2)} (including wastage)</div>
+														<div>Total Cost: ${formatCurrency(totalCost)}</div>
+														<div>Total Hours: {formatCurrency(totalHours)} (including wastage)</div>
 													</div>
 												</TooltipContent>
 											</Tooltip>
@@ -1126,17 +1431,17 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<span className="font-medium cursor-help">${(recommendedRate / totalHours).toFixed(2)}</span>
+														<span className="font-medium cursor-help">${formatCurrency(recommendedRate / totalHours)}</span>
 													</TooltipTrigger>
 													<TooltipContent>
 														<div className="space-y-1 text-xs max-w-72">
 															<h4 className="font-semibold pb-1">Effective Hourly Rate</h4>
 															<div>Formula: Recommended Rate ÷ Total Hours</div>
 															<div>
-																Calculation: ${recommendedRate.toFixed(2)} ÷ {totalHours.toFixed(2)} = ${(recommendedRate / totalHours).toFixed(2)}
+																Calculation: ${formatCurrency(recommendedRate)} ÷ {formatCurrency(totalHours)} = ${formatCurrency(recommendedRate / totalHours)}
 															</div>
-															<div>Recommended Rate: ${recommendedRate.toFixed(2)}</div>
-															<div>Total Hours: {totalHours.toFixed(2)} (including wastage)</div>
+															<div>Recommended Rate: ${formatCurrency(recommendedRate)}</div>
+															<div>Total Hours: {formatCurrency(totalHours)} (including wastage)</div>
 															<div>This is what you&apos;re effectively paying each worker per hour when accounting for wastage</div>
 														</div>
 													</TooltipContent>
@@ -1149,13 +1454,13 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 										<TooltipProvider>
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<span className="font-medium cursor-help">${totalCost.toFixed(2)}/hr</span>
+													<span className="font-medium cursor-help">${formatCurrency(totalCost)}/hr</span>
 												</TooltipTrigger>
 												<TooltipContent>
 													<div className="space-y-1 text-xs max-w-72">
 														<h4 className="font-semibold pb-1">Breakeven Rate</h4>
 														<div>Formula: Total Cost per Billable Hour</div>
-														<div>Calculation: ${totalCost.toFixed(2)}</div>
+														<div>Calculation: ${formatCurrency(totalCost)}</div>
 														<div>This is the minimum hourly rate needed to cover all costs without profit</div>
 													</div>
 												</TooltipContent>
@@ -1167,17 +1472,17 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 										<TooltipProvider>
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<span className="font-medium cursor-help">${(recommendedRate - totalCost).toFixed(2)}</span>
+													<span className="font-medium cursor-help">${formatCurrency(recommendedRate - totalCost)}</span>
 												</TooltipTrigger>
 												<TooltipContent>
 													<div className="space-y-1 text-xs max-w-72">
 														<h4 className="font-semibold pb-1">Profit Per Billable Hour</h4>
 														<div>Formula: Recommended Rate - Total Cost</div>
 														<div>
-															Calculation: ${recommendedRate.toFixed(2)} - ${totalCost.toFixed(2)} = ${(recommendedRate - totalCost).toFixed(2)}
+															Calculation: ${formatCurrency(recommendedRate)} - ${formatCurrency(totalCost)} = ${formatCurrency(recommendedRate - totalCost)}
 														</div>
-														<div>Recommended Rate: ${recommendedRate.toFixed(2)}</div>
-														<div>Total Cost: ${totalCost.toFixed(2)}</div>
+														<div>Recommended Rate: ${formatCurrency(recommendedRate)}</div>
+														<div>Total Cost: ${formatCurrency(totalCost)}</div>
 														<div>Profit Margin: {state.desiredMargin}%</div>
 													</div>
 												</TooltipContent>
@@ -1189,19 +1494,40 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 										<TooltipProvider>
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<span className="font-medium cursor-help">${totalMonthlyOverhead.toFixed(2)}</span>
+													<span className="font-medium cursor-help">${formatCurrency(totalMonthlyOverhead)}</span>
 												</TooltipTrigger>
 												<TooltipContent>
 													<div className="space-y-1 text-xs max-w-72">
 														<h4 className="font-semibold pb-1">Monthly Overhead</h4>
 														<div>Formula: Sum of all monthly overhead expenses</div>
 														<div>Calculation:</div>
-														{state.overheadCosts.map((cost) => (
+														{(state.overheadCosts || []).map((cost) => (
 															<div key={cost.id}>
-																{cost.name}: ${cost.monthlyCost.toFixed(2)}
+																{cost.name}: ${formatCurrency(cost.monthlyCost)}
 															</div>
 														))}
-														<div className="font-medium pt-1">Total: ${totalMonthlyOverhead.toFixed(2)}</div>
+														<div className="font-medium pt-1">Total: ${formatCurrency(totalMonthlyOverhead)}</div>
+													</div>
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									</div>
+									<div className="flex flex-col">
+										<span className="text-sm text-muted-foreground">Total Monthly Labor Cost</span>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span className="font-medium cursor-help">${formatCurrency(totalLaborCost * state.monthlyBillableHours)}</span>
+												</TooltipTrigger>
+												<TooltipContent>
+													<div className="space-y-1 text-xs max-w-72">
+														<h4 className="font-semibold pb-1">Total Monthly Labor Cost</h4>
+														<div>Formula: Labor Cost Per Hour × Monthly Billable Hours</div>
+														<div>
+															Calculation: ${formatCurrency(totalLaborCost)} × {state.monthlyBillableHours} = ${formatCurrency(totalLaborCost * state.monthlyBillableHours)}
+														</div>
+														<div>Labor Cost Per Hour: ${formatCurrency(totalLaborCost)}</div>
+														<div>Monthly Billable Hours: {state.monthlyBillableHours}</div>
 													</div>
 												</TooltipContent>
 											</Tooltip>
@@ -1227,7 +1553,7 @@ export default function HourlyRateCalculator({ serviceType, defaultValues, title
 						</CardHeader>
 						{state.showComparisons && (
 							<CardContent>
-								<RateComparisons baseRate={recommendedRate} baseCost={totalCost} baseMargin={state.desiredMargin} baseOverhead={totalMonthlyOverhead} monthlyBillableHours={state.monthlyBillableHours} commissionEnabled={state.commissionEnabled} commissionTotal={state.commissionEnabled ? totalCommission : 0} laborCost={totalLaborCost} wastagePercent={state.wastagePercent} />
+								<RateComparisons baseRate={recommendedRate} baseCost={totalCost} baseMargin={state.desiredMargin} baseOverhead={totalMonthlyOverhead} monthlyBillableHours={state.monthlyBillableHours} commissionEnabled={state.commissionEnabled} commissionTotal={state.commissionEnabled ? totalCommission : 0} laborCost={totalLaborCost} wastagePercent={state.wastagePercent} crewCount={state.crews.length} totalMonthlyOfficeStaffCost={totalOfficeStaffCost} />
 							</CardContent>
 						)}
 					</Card>

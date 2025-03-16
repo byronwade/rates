@@ -1,16 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { NavBar } from "@/components/ui/nav-bar";
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+	variable: "--font-geist-sans",
+	subsets: ["latin"],
+	display: "swap",
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+	variable: "--font-geist-mono",
+	subsets: ["latin"],
+	display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -18,17 +19,27 @@ export const metadata: Metadata = {
 	description: "Calculate rates and create estimates for service businesses",
 };
 
+export const viewport: Viewport = {
+	width: "device-width",
+	initialScale: 1,
+	maximumScale: 5,
+	userScalable: true,
+	themeColor: [
+		{ media: "(prefers-color-scheme: light)", color: "white" },
+		{ media: "(prefers-color-scheme: dark)", color: "black" },
+	],
+};
+
 export default function RootLayout({
-  children,
+	children,
 }: Readonly<{
-  children: React.ReactNode;
+	children: React.ReactNode;
 }>) {
-  return (
-		<html lang="en">
+	return (
+		<html lang="en" className="scroll-smooth">
 			<body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background`}>
-				<NavBar />
-				<main className="container mx-auto py-6 px-4 md:px-6">{children}</main>
+				<main className="w-full h-full">{children}</main>
 			</body>
 		</html>
-  );
+	);
 }

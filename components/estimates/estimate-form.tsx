@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -284,278 +283,281 @@ export default function EstimateForm({ savedRates = [], defaultProjectName = "",
 
 	return (
 		<div className="space-y-6">
-			<Card>
-				<CardHeader>
-					<CardTitle>{isTemplate ? `Template: ${templateName}` : "Create New Estimate"}</CardTitle>
-					<CardDescription>{isTemplate ? "Modify this template to create a new estimate" : "Build an estimate using your calculated hourly rates"}</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="grid gap-4 md:grid-cols-2">
-						<div>
-							<Label htmlFor="project-name">Project Name</Label>
-							<Input id="project-name" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="Enter project name" />
-						</div>
-						<div>
-							<RateSelector
-								onRateSelect={(rate) => {
-									setSelectedRate(rate);
-									// Update all labor line items with the new rate
-									if (rate) {
-										setLineItems(
-											lineItems.map((item) => {
-												if (item.type === "labor") {
-													const updatedItem = { ...item, price: rate.hourlyRate };
-													updatedItem.totalPrice = (item.hours || 1) * rate.hourlyRate;
-													return updatedItem;
-												}
-												return item;
-											})
-										);
-									}
-								}}
-								selectedRateId={selectedRate?.id}
-							/>
-						</div>
+			<div className="space-y-6">
+				<div className="p-6 border rounded-lg space-y-4">
+					<div className="space-y-2">
+						<h3 className="text-2xl font-semibold tracking-tight">{isTemplate ? `Template: ${templateName}` : "Create New Estimate"}</h3>
+						<p className="text-sm text-muted-foreground">{isTemplate ? "Modify this template to create a new estimate" : "Build an estimate using your calculated hourly rates"}</p>
 					</div>
 
-					{!isTemplate && (
-						<div className="grid gap-4 md:grid-cols-3">
+					<div className="space-y-4">
+						<div className="grid gap-4 md:grid-cols-2">
 							<div>
-								<Label htmlFor="client-name">Client Name</Label>
-								<Input id="client-name" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client name" />
+								<Label htmlFor="project-name">Project Name</Label>
+								<Input id="project-name" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="Enter project name" />
 							</div>
 							<div>
-								<Label htmlFor="client-email">Client Email</Label>
-								<Input id="client-email" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="client@example.com" />
-							</div>
-							<div>
-								<Label htmlFor="client-phone">Client Phone</Label>
-								<Input id="client-phone" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="(555) 555-5555" />
+								<RateSelector
+									onRateSelect={(rate) => {
+										setSelectedRate(rate);
+										// Update all labor line items with the new rate
+										if (rate) {
+											setLineItems(
+												lineItems.map((item) => {
+													if (item.type === "labor") {
+														const updatedItem = { ...item, price: rate.hourlyRate };
+														updatedItem.totalPrice = (item.hours || 1) * rate.hourlyRate;
+														return updatedItem;
+													}
+													return item;
+												})
+											);
+										}
+									}}
+									selectedRateId={selectedRate?.id}
+								/>
 							</div>
 						</div>
-					)}
 
-					<Tabs defaultValue="labor" className="mt-6">
-						<TabsList>
-							<TabsTrigger value="labor" className="flex items-center gap-2">
-								<Clock className="h-4 w-4" />
-								<span>Labor</span>
-							</TabsTrigger>
-							<TabsTrigger value="materials" className="flex items-center gap-2">
-								<ShoppingBag className="h-4 w-4" />
-								<span>Materials</span>
-							</TabsTrigger>
-						</TabsList>
-
-						<TabsContent value="labor" className="space-y-4 pt-4">
-							<div className="flex justify-between items-center">
-								<h3 className="text-lg font-medium">Labor Items</h3>
-								<Button onClick={() => addLineItem("labor")} variant="outline" size="sm">
-									<Plus className="h-4 w-4 mr-2" />
-									Add Labor
-								</Button>
+						{!isTemplate && (
+							<div className="grid gap-4 md:grid-cols-3">
+								<div>
+									<Label htmlFor="client-name">Client Name</Label>
+									<Input id="client-name" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client name" />
+								</div>
+								<div>
+									<Label htmlFor="client-email">Client Email</Label>
+									<Input id="client-email" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="client@example.com" />
+								</div>
+								<div>
+									<Label htmlFor="client-phone">Client Phone</Label>
+									<Input id="client-phone" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="(555) 555-5555" />
+								</div>
 							</div>
+						)}
 
-							<div className="rounded-md border">
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead className="w-[250px]">Description</TableHead>
-											<TableHead>Hours</TableHead>
-											<TableHead>Rate</TableHead>
-											<TableHead>Total</TableHead>
-											<TableHead className="w-[50px]"></TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{lineItems.filter((item) => item.type === "labor").length === 0 ? (
+						<Tabs defaultValue="labor" className="mt-6">
+							<TabsList>
+								<TabsTrigger value="labor" className="flex items-center gap-2">
+									<Clock className="h-4 w-4" />
+									<span>Labor</span>
+								</TabsTrigger>
+								<TabsTrigger value="materials" className="flex items-center gap-2">
+									<ShoppingBag className="h-4 w-4" />
+									<span>Materials</span>
+								</TabsTrigger>
+							</TabsList>
+
+							<TabsContent value="labor" className="space-y-4 pt-4">
+								<div className="flex justify-between items-center">
+									<h3 className="text-lg font-medium">Labor Items</h3>
+									<Button onClick={() => addLineItem("labor")} variant="outline" size="sm">
+										<Plus className="h-4 w-4 mr-2" />
+										Add Labor
+									</Button>
+								</div>
+
+								<div className="rounded-md border">
+									<Table>
+										<TableHeader>
 											<TableRow>
-												<TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
-													No labor items added yet
-												</TableCell>
+												<TableHead className="w-[250px]">Description</TableHead>
+												<TableHead>Hours</TableHead>
+												<TableHead>Rate</TableHead>
+												<TableHead>Total</TableHead>
+												<TableHead className="w-[50px]"></TableHead>
 											</TableRow>
-										) : (
-											lineItems
-												.filter((item) => item.type === "labor")
-												.map((item) => (
-													<TableRow key={item.id}>
-														<TableCell>
-															<Input value={item.name} onChange={(e) => updateLineItem(item.id, "name", e.target.value)} placeholder="Labor description" className="border-0 focus-visible:ring-0 p-0" />
-														</TableCell>
-														<TableCell>
-															<Input type="number" min={0.1} step={0.1} value={item.hours || 0} onChange={(e) => updateLineItem(item.id, "hours", parseFloat(e.target.value) || 0)} className="w-20 text-right" />
-														</TableCell>
-														<TableCell>
-															<div className="flex items-center">
-																<span className="mr-1">$</span>
-																<Input type="number" min={0} step={0.01} value={item.price} onChange={(e) => updateLineItem(item.id, "price", parseFloat(e.target.value) || 0)} className="w-20 text-right" />
-															</div>
-														</TableCell>
-														<TableCell className="font-medium">${item.totalPrice.toFixed(2)}</TableCell>
-														<TableCell>
-															<Button variant="ghost" size="icon" onClick={() => removeLineItem(item.id)}>
-																<Trash className="h-4 w-4 text-destructive" />
-															</Button>
-														</TableCell>
-													</TableRow>
-												))
-										)}
-									</TableBody>
-								</Table>
-							</div>
+										</TableHeader>
+										<TableBody>
+											{lineItems.filter((item) => item.type === "labor").length === 0 ? (
+												<TableRow>
+													<TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+														No labor items added yet
+													</TableCell>
+												</TableRow>
+											) : (
+												lineItems
+													.filter((item) => item.type === "labor")
+													.map((item) => (
+														<TableRow key={item.id}>
+															<TableCell>
+																<Input value={item.name} onChange={(e) => updateLineItem(item.id, "name", e.target.value)} placeholder="Labor description" className="border-0 focus-visible:ring-0 p-0" />
+															</TableCell>
+															<TableCell>
+																<Input type="number" min={0.1} step={0.1} value={item.hours || 0} onChange={(e) => updateLineItem(item.id, "hours", parseFloat(e.target.value) || 0)} className="w-20 text-right" />
+															</TableCell>
+															<TableCell>
+																<div className="flex items-center">
+																	<span className="mr-1">$</span>
+																	<Input type="number" min={0} step={0.01} value={item.price} onChange={(e) => updateLineItem(item.id, "price", parseFloat(e.target.value) || 0)} className="w-20 text-right" />
+																</div>
+															</TableCell>
+															<TableCell className="font-medium">${item.totalPrice.toFixed(2)}</TableCell>
+															<TableCell>
+																<Button variant="ghost" size="icon" onClick={() => removeLineItem(item.id)}>
+																	<Trash className="h-4 w-4 text-destructive" />
+																</Button>
+															</TableCell>
+														</TableRow>
+													))
+											)}
+										</TableBody>
+									</Table>
+								</div>
 
-							{lineItems.filter((item) => item.type === "labor").length > 0 && (
-								<div className="flex justify-end">
-									<div className="bg-muted rounded-md p-3 w-[250px]">
-										<div className="flex justify-between text-sm">
-											<span>Total Labor Hours:</span>
-											<span className="font-medium">{totalLaborHours.toFixed(1)} hrs</span>
-										</div>
-										<div className="flex justify-between text-sm font-medium mt-1">
-											<span>Total Labor Cost:</span>
-											<span>${totalLaborCost.toFixed(2)}</span>
+								{lineItems.filter((item) => item.type === "labor").length > 0 && (
+									<div className="flex justify-end">
+										<div className="bg-muted rounded-md p-3 w-[250px]">
+											<div className="flex justify-between text-sm">
+												<span>Total Labor Hours:</span>
+												<span className="font-medium">{totalLaborHours.toFixed(1)} hrs</span>
+											</div>
+											<div className="flex justify-between text-sm font-medium mt-1">
+												<span>Total Labor Cost:</span>
+												<span>${totalLaborCost.toFixed(2)}</span>
+											</div>
 										</div>
 									</div>
+								)}
+							</TabsContent>
+
+							<TabsContent value="materials" className="space-y-4 pt-4">
+								<div className="flex justify-between items-center">
+									<h3 className="text-lg font-medium">Material Items</h3>
+									<Button onClick={() => addLineItem("material")} variant="outline" size="sm">
+										<Plus className="h-4 w-4 mr-2" />
+										Add Material
+									</Button>
 								</div>
-							)}
-						</TabsContent>
 
-						<TabsContent value="materials" className="space-y-4 pt-4">
-							<div className="flex justify-between items-center">
-								<h3 className="text-lg font-medium">Material Items</h3>
-								<Button onClick={() => addLineItem("material")} variant="outline" size="sm">
-									<Plus className="h-4 w-4 mr-2" />
-									Add Material
-								</Button>
-							</div>
-
-							<div className="rounded-md border">
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead className="w-[250px]">Description</TableHead>
-											<TableHead>Quantity</TableHead>
-											<TableHead>Price</TableHead>
-											<TableHead>Total</TableHead>
-											<TableHead className="w-[50px]"></TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{lineItems.filter((item) => item.type === "material").length === 0 ? (
+								<div className="rounded-md border">
+									<Table>
+										<TableHeader>
 											<TableRow>
-												<TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
-													No material items added yet
-												</TableCell>
+												<TableHead className="w-[250px]">Description</TableHead>
+												<TableHead>Quantity</TableHead>
+												<TableHead>Price</TableHead>
+												<TableHead>Total</TableHead>
+												<TableHead className="w-[50px]"></TableHead>
 											</TableRow>
-										) : (
-											lineItems
-												.filter((item) => item.type === "material")
-												.map((item) => (
-													<TableRow key={item.id}>
-														<TableCell>
-															<div className="flex items-center space-x-2">
-																<ShoppingBag className="h-4 w-4 text-amber-500" />
-																<span>Material</span>
-															</div>
-														</TableCell>
-														<TableCell>
-															<Input value={item.name} onChange={(e) => updateLineItem(item.id, "name", e.target.value)} />
-														</TableCell>
-														<TableCell>
-															<Input value={item.description} onChange={(e) => updateLineItem(item.id, "description", e.target.value)} />
-														</TableCell>
-														<TableCell>
-															<Input type="number" min="1" value={item.quantity} onChange={(e) => updateLineItem(item.id, "quantity", parseInt(e.target.value) || 1)} />
-														</TableCell>
-														<TableCell>-</TableCell>
-														<TableCell>
-															<div className="flex items-center">
-																<span className="mr-1">$</span>
-																<Input type="number" min="0.01" step="0.01" value={item.price} onChange={(e) => updateLineItem(item.id, "price", parseFloat(e.target.value) || 0)} title={item.type === "material" ? "Base cost before markup" : ""} />
-															</div>
-														</TableCell>
-														<TableCell>
-															{item.type === "material" ? (
-																<div className="flex flex-col">
-																	<span className="font-medium">${item.totalPrice.toFixed(2)}</span>
-																	{item.price > 0 && <span className="text-xs text-muted-foreground">(Base: ${(item.price * item.quantity).toFixed(2)})</span>}
+										</TableHeader>
+										<TableBody>
+											{lineItems.filter((item) => item.type === "material").length === 0 ? (
+												<TableRow>
+													<TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+														No material items added yet
+													</TableCell>
+												</TableRow>
+											) : (
+												lineItems
+													.filter((item) => item.type === "material")
+													.map((item) => (
+														<TableRow key={item.id}>
+															<TableCell>
+																<div className="flex items-center space-x-2">
+																	<ShoppingBag className="h-4 w-4 text-amber-500" />
+																	<span>Material</span>
 																</div>
-															) : (
-																<span className="font-medium">${item.totalPrice.toFixed(2)}</span>
-															)}
-														</TableCell>
-														<TableCell>
-															<Button variant="ghost" size="icon" onClick={() => removeLineItem(item.id)}>
-																<Trash className="h-4 w-4 text-destructive" />
-															</Button>
-														</TableCell>
-													</TableRow>
-												))
-										)}
-									</TableBody>
-								</Table>
-							</div>
+															</TableCell>
+															<TableCell>
+																<Input value={item.name} onChange={(e) => updateLineItem(item.id, "name", e.target.value)} />
+															</TableCell>
+															<TableCell>
+																<Input value={item.description} onChange={(e) => updateLineItem(item.id, "description", e.target.value)} />
+															</TableCell>
+															<TableCell>
+																<Input type="number" min="1" value={item.quantity} onChange={(e) => updateLineItem(item.id, "quantity", parseInt(e.target.value) || 1)} />
+															</TableCell>
+															<TableCell>-</TableCell>
+															<TableCell>
+																<div className="flex items-center">
+																	<span className="mr-1">$</span>
+																	<Input type="number" min="0.01" step="0.01" value={item.price} onChange={(e) => updateLineItem(item.id, "price", parseFloat(e.target.value) || 0)} title={item.type === "material" ? "Base cost before markup" : ""} />
+																</div>
+															</TableCell>
+															<TableCell>
+																{item.type === "material" ? (
+																	<div className="flex flex-col">
+																		<span className="font-medium">${item.totalPrice.toFixed(2)}</span>
+																		{item.price > 0 && <span className="text-xs text-muted-foreground">(Base: ${(item.price * item.quantity).toFixed(2)})</span>}
+																	</div>
+																) : (
+																	<span className="font-medium">${item.totalPrice.toFixed(2)}</span>
+																)}
+															</TableCell>
+															<TableCell>
+																<Button variant="ghost" size="icon" onClick={() => removeLineItem(item.id)}>
+																	<Trash className="h-4 w-4 text-destructive" />
+																</Button>
+															</TableCell>
+														</TableRow>
+													))
+											)}
+										</TableBody>
+									</Table>
+								</div>
 
-							{lineItems.filter((item) => item.type === "material").length > 0 && (
-								<div className="flex justify-end">
-									<div className="bg-muted rounded-md p-3 w-[250px]">
-										<div className="flex justify-between text-sm font-medium">
+								{lineItems.filter((item) => item.type === "material").length > 0 && (
+									<div className="flex justify-end">
+										<div className="bg-muted rounded-md p-3 w-[250px]">
+											<div className="flex justify-between text-sm font-medium">
+												<span>Total Material Cost:</span>
+												<span>${totalMaterialCost.toFixed(2)}</span>
+											</div>
+										</div>
+									</div>
+								)}
+							</TabsContent>
+						</Tabs>
+
+						<div className="mt-6 border-t pt-4">
+							<div className="flex justify-between items-start">
+								<div className="w-1/2">
+									<Label htmlFor="project-notes">Project Notes</Label>
+									<textarea id="project-notes" value={projectNotes} onChange={(e) => setProjectNotes(e.target.value)} placeholder="Add any additional notes about this project" className="w-full min-h-[100px] p-2 border rounded-md"></textarea>
+								</div>
+
+								<div className="bg-muted rounded-md p-4 w-[300px]">
+									<h3 className="font-medium mb-2">Estimate Summary</h3>
+									<div className="space-y-2 text-sm">
+										<div className="flex justify-between">
+											<span>Labor:</span>
+											<span>${totalLaborCost.toFixed(2)}</span>
+										</div>
+										<div className="flex justify-between">
+											<span>Base Material Cost:</span>
+											<span>${baseMaterialCost.toFixed(2)}</span>
+										</div>
+										<div className="flex justify-between">
+											<span>Material Markup (40%):</span>
+											<span>${materialProfit.toFixed(2)}</span>
+										</div>
+										<div className="flex justify-between">
 											<span>Total Material Cost:</span>
 											<span>${totalMaterialCost.toFixed(2)}</span>
 										</div>
-									</div>
-								</div>
-							)}
-						</TabsContent>
-					</Tabs>
-
-					<div className="mt-6 border-t pt-4">
-						<div className="flex justify-between items-start">
-							<div className="w-1/2">
-								<Label htmlFor="project-notes">Project Notes</Label>
-								<textarea id="project-notes" value={projectNotes} onChange={(e) => setProjectNotes(e.target.value)} placeholder="Add any additional notes about this project" className="w-full min-h-[100px] p-2 border rounded-md"></textarea>
-							</div>
-
-							<div className="bg-muted rounded-md p-4 w-[300px]">
-								<h3 className="font-medium mb-2">Estimate Summary</h3>
-								<div className="space-y-2 text-sm">
-									<div className="flex justify-between">
-										<span>Labor:</span>
-										<span>${totalLaborCost.toFixed(2)}</span>
-									</div>
-									<div className="flex justify-between">
-										<span>Base Material Cost:</span>
-										<span>${baseMaterialCost.toFixed(2)}</span>
-									</div>
-									<div className="flex justify-between">
-										<span>Material Markup (40%):</span>
-										<span>${materialProfit.toFixed(2)}</span>
-									</div>
-									<div className="flex justify-between">
-										<span>Total Material Cost:</span>
-										<span>${totalMaterialCost.toFixed(2)}</span>
-									</div>
-									<div className="flex justify-between font-medium text-base pt-2 border-t">
-										<span>Total Estimate:</span>
-										<span>${totalEstimate.toFixed(2)}</span>
+										<div className="flex justify-between font-medium text-base pt-2 border-t">
+											<span>Total Estimate:</span>
+											<span>${totalEstimate.toFixed(2)}</span>
+										</div>
 									</div>
 								</div>
 							</div>
 						</div>
-					</div>
 
-					<div className="flex justify-end gap-3 mt-6">
-						<Button variant="outline" onClick={saveAsTemplate}>
-							<FilePlus2 className="h-4 w-4 mr-2" />
-							Save as Template
-						</Button>
-						<Button onClick={saveEstimate}>
-							<File className="h-4 w-4 mr-2" />
-							Save Estimate
-						</Button>
+						<div className="flex justify-end gap-3 mt-6">
+							<Button variant="outline" onClick={saveAsTemplate}>
+								<FilePlus2 className="h-4 w-4 mr-2" />
+								Save as Template
+							</Button>
+							<Button onClick={saveEstimate}>
+								<File className="h-4 w-4 mr-2" />
+								Save Estimate
+							</Button>
+						</div>
 					</div>
-				</CardContent>
-			</Card>
+				</div>
+			</div>
 		</div>
 	);
 }
